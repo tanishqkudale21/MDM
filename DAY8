@@ -1,0 +1,73 @@
+#include <PDM.h>
+
+// Microphone configuration
+const int channels = 1;
+const int sampleRate = 16000;
+
+// Buffer for microphone samples
+short sampleBuffer[512];
+volatile int samplesRead = 0;
+
+// Voice detection threshold
+const int VOICE_THRESHOLD = 500;
+
+// Built-in LED
+const int LED_PIN = LED_BUILTIN;
+
+void setup() {
+  Serial.begin(115200);
+  while (!Serial);
+
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
+
+  // Register callback
+  PDM.onReceive(onPDMdata);
+
+  // Set microphone gain (0-80)
+  PDM.setGain(40);
+
+  // Start microphone
+  if (!PDM.begin(channels, sampleRate)) {
+    Serial.println("Failed to start PDM microphone!");
+    while (1);
+  }
+
+  Serial.println("Microphone initialized.");
+}
+
+void loop() {
+  if (samplesRead > 0) {
+
+    long sum = 0;
+
+    // Calculate average amplitude
+    for (int i = 0; i < samplesRead; i++) {
+      sum += abs(sampleBuffer[i]);
+    }
+
+    int averageAmplitude = sum / samplesRead;
+
+    Serial.print("Amplitude: ");
+    Serial.print(averageAmplitude);
+
+    if (averageAmplitude > VOICE_THRESHOLD) {
+      Serial.println(" --> Voice Detected");
+      digitalWrite(LED_PIN, HIGH);   // Turn LED ON
+    } else {
+      Serial.println(" --> Silence");
+      digitalWrite(LED_PIN, LOW);    // Turn LED OFF
+    }
+
+    samplesRead = 0;
+  }
+}
+
+// Callback when new microphone data arrives
+void onPDMdata() {
+  int bytesAvailable = PDM.available();
+
+  PDM.read(sampleBuffer, bytesAvailable);
+
+  samplesRead = bytesAvailable / 2;
+}
